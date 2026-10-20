@@ -16,46 +16,27 @@ const client = new ApifyClient({
 });
 
 app.post('/api/fetch-comments', async (req, res) => {
-  const { postUrl, limit = 5000 } = req.body;
+  const { postUrl, limit = 500 } = req.body;
 
   if (!postUrl || !postUrl.includes('instagram.com')) {
     return res.status(400).json({ error: 'A valid Instagram URL is required.' });
   }
 
   try {
-    // Enable includeReplies so Apify extracts both main comments and replies
-    const run = await client.actor('apify/instagram-comment-scraper').call({
-      directUrls: [postUrl],
-      resultsLimit: parseInt(limit, 10),
-      includeReplies: true,
+    // Uses API Dojo's scraper which bypasses the 15-comment free cap
+    const run = await client.actor('apidojo/instagram-comments-scraper-api').call({
+      postUrls: [postUrl],
+      resultsPerPost: parseInt(limit, 10),
     });
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-    const normalized = [];
-    items.forEach((item, index) => {
-      // 1. Add main comment
-      if (item.text || item.ownerUsername) {
-        normalized.push({
-          id: item.id || `c_${index}`,
-          username: item.ownerUsername || item.username || 'user',
-          text: item.text || '',
-          timestamp: item.timestamp,
-        });
-      }
-
-      // 2. Unpack and add all nested replies so everyone is included
-      if (item.replies && Array.isArray(item.replies)) {
-        item.replies.forEach((rep, rIndex) => {
-          normalized.push({
-            id: rep.id || `reply_${index}_${rIndex}`,
-            username: rep.ownerUsername || rep.username || 'user',
-            text: rep.text || '',
-            timestamp: rep.timestamp,
-          });
-        });
-      }
-    });
+    const normalized = items.map((item, index) => ({
+      id: item.id || item.commentId || `c_${index}`,
+      username: item.ownerUsername || (item.user && item.user.username) || item.username || 'user',
+      text: item.text || item.commentText || '',
+      timestamp: item.timestamp || item.createdAt || new Date().toISOString(),
+    })).filter(c => c.text || c.username);
 
     res.json({
       success: true,
