@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const client = new ApifyClient({
@@ -23,30 +23,28 @@ app.post('/api/fetch-comments', async (req, res) => {
   }
 
   try {
-    // Uses API Dojo's scraper which bypasses the 15-comment free cap
-    const run = await client.actor('apidojo/instagram-comments-scraper-api').call({
-      postUrls: [postUrl],
-      resultsPerPost: parseInt(limit, 10),
+    const run = await client.actor('apify/instagram-comment-scraper').call({
+      directUrls: [postUrl],
+      resultsLimit: parseInt(limit, 10),
     });
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
     const normalized = items.map((item, index) => ({
-      id: item.id || item.commentId || `c_${index}`,
-      username: item.ownerUsername || (item.user && item.user.username) || item.username || 'user',
-      text: item.text || item.commentText || '',
-      timestamp: item.timestamp || item.createdAt || new Date().toISOString(),
+      id: item.id || `c_${index}`,
+      username: item.ownerUsername || item.username || 'user',
+      text: item.text || '',
+      timestamp: item.timestamp || new Date().toISOString(),
     })).filter(c => c.text || c.username);
 
     res.json({
       success: true,
-      mode: 'live',
       count: normalized.length,
       comments: normalized,
     });
   } catch (error) {
     console.error('Scraping error:', error.message);
-    res.status(500).json({ error: 'Failed to extract comments from Instagram.' });
+    res.status(500).json({ error: error.message });
   }
 });
 

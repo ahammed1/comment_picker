@@ -15,28 +15,27 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col">
 
-  <!-- Header -->
   <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
     <div class="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl insta-gradient flex items-center justify-center shadow-lg shadow-pink-500/20 text-white font-extrabold text-xl">
-          🎁
-        </div>
+        <div class="w-10 h-10 rounded-xl insta-gradient flex items-center justify-center shadow-lg shadow-pink-500/20 text-white font-extrabold text-xl">🎁</div>
         <div>
           <h1 class="text-lg font-bold text-white tracking-tight">InstaPicker Pro</h1>
           <p class="text-xs text-slate-400">Instagram Giveaway & Contest Picker</p>
         </div>
       </div>
-      <button id="soundToggle" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition">
-        🔊 Sound: <span id="soundStatus">ON</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="btnOpenPasteModal" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-pink-400 transition">
+          📋 Paste / Upload All (5k+)
+        </button>
+        <button id="soundToggle" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition">
+          🔊 Sound: <span id="soundStatus">ON</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <!-- Main Grid -->
   <main class="max-w-6xl mx-auto px-4 py-8 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
-    
-    <!-- Controls Column -->
     <div class="lg:col-span-5 space-y-6">
       
       <!-- 1. Post URL Card -->
@@ -51,37 +50,34 @@
         </div>
 
         <div class="grid grid-cols-2 gap-2 pt-1">
-          <button id="btnFetchDemo" class="w-full py-2.5 px-3 rounded-xl border border-pink-500/40 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 text-xs font-bold transition flex items-center justify-center gap-1.5">
+          <button id="btnFetchDemo" class="w-full py-2.5 px-3 rounded-xl border border-pink-500/40 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 text-xs font-bold transition">
             ⚡ Quick Demo
           </button>
-          <button id="btnFetchLive" class="w-full py-2.5 px-3 rounded-xl insta-gradient hover:opacity-90 text-white text-xs font-bold transition shadow-md shadow-pink-500/25 flex items-center justify-center gap-1.5">
+          <button id="btnFetchLive" class="w-full py-2.5 px-3 rounded-xl insta-gradient hover:opacity-90 text-white text-xs font-bold transition shadow-md shadow-pink-500/25">
             📥 Fetch Comments
           </button>
         </div>
       </div>
 
-      <!-- 2. Giveaway Rules Card -->
+      <!-- 2. Rules Card -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
           <span class="w-2 h-2 rounded-full bg-pink-500"></span> 2. Contest Rules & Filters
         </h2>
 
         <div class="space-y-3">
-          <!-- Tag Friend Rule -->
           <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
             <div>
               <div class="text-sm font-semibold text-slate-200">Must Tag Friends</div>
-              <div class="text-xs text-slate-400">Rule: "Share to a friend (@mention)"</div>
+              <div class="text-xs text-slate-400">Rule: "Share to friend (@mention)"</div>
             </div>
             <select id="minTags" class="bg-slate-900 border border-slate-700 text-xs font-semibold rounded-lg px-3 py-1.5 text-slate-200 focus:border-pink-500">
-              <option value="0">Off (0 tags)</option>
-              <option value="1" selected>At least 1 friend (@)</option>
+              <option value="0" selected>Off (0 tags)</option>
+              <option value="1">At least 1 friend (@)</option>
               <option value="2">At least 2 friends (@)</option>
-              <option value="3">At least 3 friends (@)</option>
             </select>
           </div>
 
-          <!-- Unique Users Rule -->
           <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
             <div>
               <div class="text-sm font-semibold text-slate-200">Filter Duplicate Users</div>
@@ -93,7 +89,6 @@
             </label>
           </div>
 
-          <!-- Keyword filter -->
           <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5">
             <div class="flex items-center justify-between">
               <div class="text-sm font-semibold text-slate-200">Required Keyword / Hashtag</div>
@@ -103,7 +98,6 @@
           </div>
         </div>
 
-        <!-- Metrics -->
         <div class="grid grid-cols-2 gap-3 pt-2 text-center">
           <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
             <div id="statTotal" class="text-xl font-extrabold text-white">0</div>
@@ -117,39 +111,28 @@
       </div>
     </div>
 
-    <!-- Live Stage & Winner Section -->
+    <!-- Live Stage -->
     <div class="lg:col-span-7 flex flex-col space-y-6">
-      
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl flex-1 flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden">
-        <div class="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-pink-500/10 blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-purple-500/10 blur-3xl pointer-events-none"></div>
-
-        <!-- 1. Idle State -->
+        
         <div id="viewIdle" class="text-center space-y-3 max-w-sm">
-          <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-3xl">
-            🎯
-          </div>
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-3xl">🎯</div>
           <h3 class="text-lg font-bold text-white">Ready to Pick a Winner</h3>
-          <p class="text-xs text-slate-400">Fetch comments from an Instagram post or click "Quick Demo" to begin.</p>
+          <p class="text-xs text-slate-400">Fetch comments from an Instagram post, load Demo, or click "Paste / Upload".</p>
         </div>
 
-        <!-- 2. Shuffling Roll State -->
         <div id="viewRolling" class="hidden text-center space-y-4 w-full max-w-md">
-          <div class="text-xs uppercase font-extrabold tracking-widest text-pink-400 animate-pulse">
-            Selecting Random Winner...
-          </div>
+          <div class="text-xs uppercase font-extrabold tracking-widest text-pink-400 animate-pulse">Selecting Random Winner...</div>
           <div class="bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-6 shadow-2xl">
             <div id="rollerUsername" class="text-2xl font-black text-white truncate">@searching...</div>
-            <div id="rollerText" class="text-xs text-slate-400 mt-2 italic truncate">"Checking comments..."</div>
+            <div id="rollerText" class="text-xs text-slate-400 mt-2 italic truncate">"Scanning entries..."</div>
           </div>
-          <div class="text-xs text-slate-500">Verifying tags and eligibility...</div>
         </div>
 
-        <!-- 3. Winner Card State -->
         <div id="viewWinner" class="hidden w-full max-w-lg space-y-5">
           <div class="text-center space-y-1">
             <span class="inline-block px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-pink-500/20 text-pink-400 border border-pink-500/30">
-              🎉 Official Winner Selected
+              🎉 Winner Selected
             </span>
             <h3 class="text-2xl font-black text-white">Congratulations!</h3>
           </div>
@@ -162,19 +145,14 @@
                 </div>
                 <div>
                   <h4 id="winnerUsername" class="text-lg font-bold text-white">@username</h4>
-                  <div class="text-xs text-slate-400" id="winnerTagsCount">Tagged 1 friend</div>
+                  <div class="text-xs text-slate-400" id="winnerTagsCount">Tagged friends</div>
                 </div>
               </div>
-              <a id="winnerProfileLink" href="#" target="_blank" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition">
-                View Profile ↗
-              </a>
+              <a id="winnerProfileLink" href="#" target="_blank" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition">View Profile ↗</a>
             </div>
 
-            <div class="mt-4 p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 leading-relaxed" id="winnerCommentText">
-              "Comment text here"
-            </div>
+            <div class="mt-4 p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 leading-relaxed" id="winnerCommentText"></div>
 
-            <!-- Verification Checklist for Rules -->
             <div class="mt-5 pt-4 border-t border-slate-800 space-y-2">
               <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Host Verification Checklist</div>
               <div class="grid grid-cols-2 gap-2 text-xs">
@@ -191,25 +169,18 @@
           </div>
 
           <div class="flex items-center justify-between gap-3">
-            <button id="btnRedraw" class="flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition">
-              🔄 Pick Alternate Winner
-            </button>
-            <button id="btnConfirmWinner" class="flex-1 py-3 px-4 rounded-xl insta-gradient hover:opacity-95 text-white text-xs font-bold transition shadow-lg shadow-pink-500/20">
-              ✅ Confirm & Save Winner
-            </button>
+            <button id="btnRedraw" class="flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition">🔄 Pick Alternate</button>
+            <button id="btnConfirmWinner" class="flex-1 py-3 px-4 rounded-xl insta-gradient text-white text-xs font-bold transition">✅ Confirm & Save</button>
           </div>
         </div>
 
-        <!-- Big Pick Button -->
         <div id="actionContainer" class="mt-8 w-full max-w-sm hidden">
-          <button id="btnPickWinner" class="w-full py-4 px-6 rounded-2xl insta-gradient hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold text-base tracking-wide transition shadow-xl shadow-pink-500/25 flex items-center justify-center gap-2">
+          <button id="btnPickWinner" class="w-full py-4 px-6 rounded-2xl insta-gradient hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold text-base tracking-wide transition shadow-xl shadow-pink-500/25">
             🎲 PICK RANDOM WINNER
           </button>
         </div>
-
       </div>
 
-      <!-- Winner History -->
       <div id="winnersHistoryCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 hidden">
         <div class="flex items-center justify-between mb-3">
           <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Selected Winners</h4>
@@ -217,9 +188,29 @@
         </div>
         <div id="winnersList" class="space-y-2"></div>
       </div>
-
     </div>
   </main>
+
+  <!-- Paste / Upload Modal -->
+  <div id="pasteModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-white">Load Comments (Direct Input / CSV)</h3>
+        <button id="btnCloseModal" class="text-slate-400 hover:text-white text-xl">&times;</button>
+      </div>
+      <p class="text-xs text-slate-400">Paste comments text (one per line, e.g. <code>@username: Great post! @friend</code>) or raw JSON/CSV array.</p>
+      <textarea id="pasteInput" rows="7" placeholder="@john_doe: Awesome giveaway! @sarah&#10;@emma_watson: Hope I win! @claire&#10;@alex99: Count me in!" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono focus:border-pink-500 focus:outline-none"></textarea>
+      
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <button id="btnLoad5000Sample" class="py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">
+          Load 1,000 Mock Entries
+        </button>
+        <button id="btnApplyPaste" class="py-2.5 px-5 rounded-xl insta-gradient font-bold text-xs text-white">
+          Apply Comments
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
     let rawComments = [];
@@ -278,6 +269,44 @@
       }
     }
 
+    // Modal controls
+    const modal = document.getElementById('pasteModal');
+    document.getElementById('btnOpenPasteModal').addEventListener('click', () => modal.classList.remove('hidden'));
+    document.getElementById('btnCloseModal').addEventListener('click', () => modal.classList.add('hidden'));
+
+    document.getElementById('btnLoad5000Sample').addEventListener('click', () => {
+      let sample = [];
+      for (let i = 1; i <= 1000; i++) {
+        sample.push({
+          id: `entry_${i}`,
+          username: `user_${i}`,
+          text: `Entering the contest! @friend_${(i % 50) + 1} #giveaway`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      rawComments = sample;
+      recalculateEligible();
+      modal.classList.add('hidden');
+      showIdleState();
+      alert('Loaded 1,000 entries successfully!');
+    });
+
+    document.getElementById('btnApplyPaste').addEventListener('click', () => {
+      const text = document.getElementById('pasteInput').value.trim();
+      if (!text) return;
+      const lines = text.split('\n');
+      rawComments = lines.map((l, i) => {
+        const parts = l.split(':');
+        const username = parts.length > 1 ? parts[0].replace('@', '').trim() : `user_${i+1}`;
+        const commentText = parts.length > 1 ? parts.slice(1).join(':').trim() : l.trim();
+        return { id: `paste_${i}`, username, text: commentText, timestamp: new Date().toISOString() };
+      }).filter(c => c.text);
+      recalculateEligible();
+      modal.classList.add('hidden');
+      showIdleState();
+      alert(`Loaded ${rawComments.length} custom entries!`);
+    });
+
     document.getElementById('soundToggle').addEventListener('click', () => {
       soundEnabled = !soundEnabled;
       document.getElementById('soundStatus').innerText = soundEnabled ? 'ON' : 'OFF';
@@ -287,16 +316,14 @@
     document.getElementById('filterDuplicates').addEventListener('change', recalculateEligible);
     document.getElementById('filterKeyword').addEventListener('input', recalculateEligible);
 
-    // Fetch Live or Demo comments
-    document.getElementById('btnFetchDemo').addEventListener('click', async () => {
-      document.getElementById('postUrl').value = "https://www.instagram.com/p/DEMO-POST/";
-      const res = await fetch('/api/fetch-comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postUrl: 'url', limit: 4000 })
-      });
-      const data = await res.json();
-      rawComments = data.comments || [];
+    document.getElementById('btnFetchDemo').addEventListener('click', () => {
+      rawComments = [
+        { id: "c1", username: "alex_adventures", text: "Need this! @sarah_travels check this giveaway out 🔥 #giveaway" },
+        { id: "c2", username: "maria.design", text: "Love this! Tagging my bestie @claire_art #giveaway" },
+        { id: "c3", username: "fitness_john", text: "Count me in! Hope I win 🙏" },
+        { id: "c4", username: "elena_cooks", text: "Amazing! @mike_foodie @jenny_eats check this!" },
+        { id: "c5", username: "dev_rohit", text: "Pick me please! @rahul_tech #giveaway" }
+      ];
       recalculateEligible();
       showIdleState();
     });
@@ -313,7 +340,7 @@
         const res = await fetch('/api/fetch-comments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ postUrl: url, limit: 200 })
+          body: JSON.stringify({ postUrl: url, limit: 500 })
         });
         const data = await res.json();
         rawComments = data.comments || [];
@@ -334,27 +361,23 @@
       document.getElementById('viewWinner').classList.add('hidden');
     }
 
-    // Winner Draw logic
     let rollInterval = null;
     document.getElementById('btnPickWinner').addEventListener('click', startWinnerDraw);
     document.getElementById('btnRedraw').addEventListener('click', startWinnerDraw);
 
     function startWinnerDraw() {
       if (eligibleComments.length === 0) return;
-
       document.getElementById('viewIdle').classList.add('hidden');
       document.getElementById('viewWinner').classList.add('hidden');
       document.getElementById('viewRolling').classList.remove('hidden');
 
       let rollCount = 0;
       clearInterval(rollInterval);
-
       rollInterval = setInterval(() => {
         const rand = eligibleComments[Math.floor(Math.random() * eligibleComments.length)];
         document.getElementById('rollerUsername').innerText = '@' + rand.username;
         document.getElementById('rollerText').innerText = `"${rand.text}"`;
         rollCount++;
-
         if (rollCount >= 25) {
           clearInterval(rollInterval);
           finalizeWinner(rand);
@@ -365,13 +388,11 @@
     function finalizeWinner(winner) {
       document.getElementById('viewRolling').classList.add('hidden');
       document.getElementById('viewWinner').classList.remove('hidden');
-
       document.getElementById('winnerUsername').innerText = '@' + winner.username;
       document.getElementById('winnerAvatar').innerText = winner.username.charAt(0).toUpperCase();
       document.getElementById('winnerCommentText').innerText = `"${winner.text}"`;
       document.getElementById('winnerTagsCount').innerText = `Tagged ${winner.mentions.length} friend${winner.mentions.length === 1 ? '' : 's'}: ${winner.mentions.join(', ') || 'None'}`;
       document.getElementById('winnerProfileLink').href = `https://instagram.com/${winner.username}`;
-
       document.getElementById('chkFollows').checked = false;
       document.getElementById('chkShared').checked = winner.mentions.length >= 1;
 
@@ -383,13 +404,11 @@
     document.getElementById('btnConfirmWinner').addEventListener('click', () => {
       if (!window.currentWinner) return;
       selectedWinners.push(window.currentWinner);
-
       document.getElementById('winnersHistoryCard').classList.remove('hidden');
       const item = document.createElement('div');
       item.className = "flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs";
       item.innerHTML = `<span class="font-bold text-white">#${selectedWinners.length} @${window.currentWinner.username}</span><span class="text-slate-400 truncate max-w-[200px]">"${window.currentWinner.text}"</span>`;
       document.getElementById('winnersList').prepend(item);
-
       eligibleComments = eligibleComments.filter(c => c.username !== window.currentWinner.username);
       document.getElementById('statEligible').innerText = eligibleComments.length;
       alert(`Winner @${window.currentWinner.username} confirmed and logged!`);
