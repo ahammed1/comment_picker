@@ -11,41 +11,38 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Apify Client setup
+// Apify Client
 const client = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 });
 
-// Endpoint: Fetch comments from an Instagram post or Reel URL
 app.post('/api/fetch-comments', async (req, res) => {
-  const { postUrl, limit = 150 } = req.body;
+  const { postUrl, limit = 200 } = req.body;
 
   if (!postUrl || !postUrl.includes('instagram.com')) {
     return res.status(400).json({ error: 'A valid Instagram URL is required.' });
   }
 
-  // Fallback demo comments if no Apify token is provided in .env
-  if (!process.env.APIFY_TOKEN || process.env.APIFY_TOKEN === 'your_apify_api_token_here') {
+  // Fallback if no token is configured
+  if (!process.env.APIFY_TOKEN) {
     return res.json({
       success: true,
       mode: 'demo',
-      message: 'No Apify token set. Returning realistic demo comments.',
       comments: [
-        { id: 'c1', username: 'alex_adventures', text: 'OMG I need this! @sarah_travels check this giveaway out 🔥 #giveaway', timestamp: new Date().toISOString() },
-        { id: 'c2', username: 'maria.design', text: 'Love your work! Tagging my bestie @claire_art #giveaway', timestamp: new Date().toISOString() },
-        { id: 'c3', username: 'fitness_john', text: 'Count me in! Hope I win this one 🙏', timestamp: new Date().toISOString() },
-        { id: 'c4', username: 'elena_cooks', text: 'Amazing! @mike_foodie @jenny_eats you guys have to enter too!', timestamp: new Date().toISOString() },
-        { id: 'c5', username: 'dev_rohit', text: 'Pick me please! @rahul_tech this looks insane #giveaway', timestamp: new Date().toISOString() },
-        { id: 'c6', username: 'sophie_style', text: 'Obsessed! @emma_fashion let us win please', timestamp: new Date().toISOString() },
-        { id: 'c7', username: 'alex_adventures', text: 'Second entry just in case! @sarah_travels', timestamp: new Date().toISOString() },
-        { id: 'c8', username: 'kavita_m', text: 'Fingers crossed! 🤞 @priya_designs', timestamp: new Date().toISOString() },
-        { id: 'c9', username: 'tech_guru99', text: 'Great content as always 👍', timestamp: new Date().toISOString() }
+        { id: 'c1', username: 'alex_adventures', text: 'OMG I need this! @sarah_travels check this giveaway out 🔥 #giveaway' },
+        { id: 'c2', username: 'maria.design', text: 'Love your work! Tagging my bestie @claire_art #giveaway' },
+        { id: 'c3', username: 'fitness_john', text: 'Count me in! Hope I win this one 🙏' },
+        { id: 'c4', username: 'elena_cooks', text: 'Amazing! @mike_foodie @jenny_eats you guys have to enter too!' },
+        { id: 'c5', username: 'dev_rohit', text: 'Pick me please! @rahul_tech this looks insane #giveaway' },
+        { id: 'c6', username: 'sophie_style', text: 'Obsessed! @emma_fashion let us win please' },
+        { id: 'c7', username: 'alex_adventures', text: 'Second entry just in case! @sarah_travels' },
+        { id: 'c8', username: 'kavita_m', text: 'Fingers crossed! 🤞 @priya_designs' }
       ]
     });
   }
 
   try {
-    // Run the Apify Instagram Comment Scraper Actor
+    // Calls Apify Instagram Comment Scraper Actor
     const run = await client.actor('apify/instagram-comment-scraper').call({
       directUrls: [postUrl],
       resultsLimit: parseInt(limit, 10),
@@ -54,10 +51,10 @@ app.post('/api/fetch-comments', async (req, res) => {
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
     const normalized = items.map((item, index) => ({
-      id: item.id || `comment_${index}`,
+      id: item.id || `c_${index}`,
       username: item.ownerUsername || item.username || 'user',
       text: item.text || '',
-      timestamp: item.timestamp || new Date().toISOString(),
+      timestamp: item.timestamp,
     }));
 
     res.json({
@@ -73,5 +70,5 @@ app.post('/api/fetch-comments', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
