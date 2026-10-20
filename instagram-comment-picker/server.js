@@ -11,51 +11,51 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Apify Client
 const client = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 });
 
 app.post('/api/fetch-comments', async (req, res) => {
-  const { postUrl, limit = 200 } = req.body;
+  const { postUrl, limit = 500 } = req.body;
 
   if (!postUrl || !postUrl.includes('instagram.com')) {
     return res.status(400).json({ error: 'A valid Instagram URL is required.' });
   }
 
-  // Fallback if no token is configured
-  if (!process.env.APIFY_TOKEN) {
-    return res.json({
-      success: true,
-      mode: 'demo',
-      comments: [
-        { id: 'c1', username: 'alex_adventures', text: 'OMG I need this! @sarah_travels check this giveaway out 🔥 #giveaway' },
-        { id: 'c2', username: 'maria.design', text: 'Love your work! Tagging my bestie @claire_art #giveaway' },
-        { id: 'c3', username: 'fitness_john', text: 'Count me in! Hope I win this one 🙏' },
-        { id: 'c4', username: 'elena_cooks', text: 'Amazing! @mike_foodie @jenny_eats you guys have to enter too!' },
-        { id: 'c5', username: 'dev_rohit', text: 'Pick me please! @rahul_tech this looks insane #giveaway' },
-        { id: 'c6', username: 'sophie_style', text: 'Obsessed! @emma_fashion let us win please' },
-        { id: 'c7', username: 'alex_adventures', text: 'Second entry just in case! @sarah_travels' },
-        { id: 'c8', username: 'kavita_m', text: 'Fingers crossed! 🤞 @priya_designs' }
-      ]
-    });
-  }
-
   try {
-    // Calls Apify Instagram Comment Scraper Actor
+    // Enable includeReplies so Apify extracts both main comments and replies
     const run = await client.actor('apify/instagram-comment-scraper').call({
       directUrls: [postUrl],
       resultsLimit: parseInt(limit, 10),
+      includeReplies: true,
     });
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-    const normalized = items.map((item, index) => ({
-      id: item.id || `c_${index}`,
-      username: item.ownerUsername || item.username || 'user',
-      text: item.text || '',
-      timestamp: item.timestamp,
-    }));
+    const normalized = [];
+    items.forEach((item, index) => {
+      // 1. Add main comment
+      if (item.text || item.ownerUsername) {
+        normalized.push({
+          id: item.id || `c_${index}`,
+          username: item.ownerUsername || item.username || 'user',
+          text: item.text || '',
+          timestamp: item.timestamp,
+        });
+      }
+
+      // 2. Unpack and add all nested replies so everyone is included
+      if (item.replies && Array.isArray(item.replies)) {
+        item.replies.forEach((rep, rIndex) => {
+          normalized.push({
+            id: rep.id || `reply_${index}_${rIndex}`,
+            username: rep.ownerUsername || rep.username || 'user',
+            text: rep.text || '',
+            timestamp: rep.timestamp,
+          });
+        });
+      }
+    });
 
     res.json({
       success: true,
