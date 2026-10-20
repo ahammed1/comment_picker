@@ -293,7 +293,7 @@
       const res = await fetch('/api/fetch-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postUrl: 'demo' })
+        body: JSON.stringify({ postUrl: 'url', limit: 2000 })
       });
       const data = await res.json();
       rawComments = data.comments || [];
