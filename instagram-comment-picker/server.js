@@ -16,7 +16,7 @@ const client = new ApifyClient({
 });
 
 app.post('/api/fetch-comments', async (req, res) => {
-  const { postUrl, limit = 500 } = req.body;
+  const { postUrl, limit = 5000 } = req.body;
 
   if (!postUrl || !postUrl.includes('instagram.com')) {
     return res.status(400).json({ error: 'A valid Instagram URL is required.' });
