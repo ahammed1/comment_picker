@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
-const { ApifyClient } = require('apify-client');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,9 +11,6 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const apifyClient = process.env.APIFY_TOKEN
-  ? new ApifyClient({ token: process.env.APIFY_TOKEN })
-  : null;
 
 app.post('/api/fetch-comments', async (req, res) => {
   const { postUrl, limit = 10000 } = req.body;
@@ -83,87 +79,110 @@ app.post('/api/fetch-comments', async (req, res) => {
     }
   }
 
-  if (!apifyClient) {
-    return res.status(400).json({ error: 'APIFY_TOKEN is not configured.' });
+  const brightDataToken = process.env.BRIGHTDATA_API_KEY;
+  if (!brightDataToken) {
+    return res.status(503).json({
+      success: false,
+      code: 'BRIGHTDATA_TOKEN_MISSING',
+      error: 'Automatic fetching is not configured yet. Add BRIGHTDATA_API_KEY in Render Environment, then redeploy. You can still import a CSV, JSON, or TXT comments file.',
+    });
   }
 
   try {
-    // This actor supports a configurable per-post comment limit beyond 1,000.
-    // Large requests may cost more and can still be limited by Instagram visibility/rate limits.
-    const actorLimit = commentLimit;
-    console.log(`Fetching up to ${actorLimit} comments via Apify for: ${postUrl}`);
+    console.log(`Fetching up to ${commentLimit} comments via Bright Data for: ${postUrl}`);
 
-    const run = await apifyClient.actor('datascrapers/instagram-comment-scraper').call({
-      post_urls: [postUrl],
-      max_comments: actorLimit,
-      posts_concurrency: 1,
-      sleep_min: 5,
-      sleep_max: 12,
-      request_timeout: 120,
-      request_retries: 2,
-      rate_limit_cooldown: 180,
-      rate_limit_max_waits: 3,
-      proxyConfiguration: {
-        useApifyProxy: true,
-        apifyProxyGroups: ['RESIDENTIAL'],
-        apifyProxyCountry: 'US',
-      },
-    });
+    // Bright Data's Instagram Comments dataset. One returned record represents a comment.
+    const triggerRes = await axios.post(
+      'https://api.brightdata.com/datasets/v3/trigger',
+      [{ url: postUrl }],
+      {
+        params: {
+          dataset_id: 'gd_ltppn085pokosxh13',
+          format: 'json',
+          uncompressed_webhook: 'true',
+        },
+        headers: {
+          Authorization: `Bearer ${brightDataToken}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    );
 
-    const dataset = apifyClient.dataset(run.defaultDatasetId);
-    const items = [];
-    const pageSize = 1000;
-    let offset = 0;
+    const snapshotId = triggerRes.data?.snapshot_id || triggerRes.data?.snapshotId || triggerRes.data?.id;
+    let resultRows = Array.isArray(triggerRes.data) ? triggerRes.data : null;
 
-    while (items.length < actorLimit) {
-      const requestedPageSize = Math.min(pageSize, actorLimit - items.length);
-      const page = await dataset.listItems({ limit: requestedPageSize, offset });
-      const pageItems = page.items || [];
-      if (pageItems.length === 0) break;
+    // Large collections run asynchronously. Poll for completion before downloading the snapshot.
+    if (!resultRows && snapshotId) {
+      let ready = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const progressRes = await axios.get(
+          `https://api.brightdata.com/datasets/v3/progress/${encodeURIComponent(snapshotId)}`,
+          {
+            headers: { Authorization: `Bearer ${brightDataToken}` },
+            timeout: 20000,
+          }
+        );
+        const status = String(progressRes.data?.status || '').toLowerCase();
+        if (status === 'ready' || status === 'completed') {
+          ready = true;
+          break;
+        }
+        if (status === 'failed' || status === 'error') {
+          throw new Error(progressRes.data?.error || `Bright Data collection status: ${status}`);
+        }
+      }
 
-      items.push(...pageItems);
-      offset += pageItems.length;
-      if (pageItems.length < requestedPageSize) break;
+      if (!ready) {
+        throw new Error('Bright Data collection is taking longer than expected. Please try again shortly.');
+      }
+
+      const snapshotRes = await axios.get(
+        `https://api.brightdata.com/datasets/v3/snapshot/${encodeURIComponent(snapshotId)}`,
+        {
+          params: { format: 'json' },
+          headers: { Authorization: `Bearer ${brightDataToken}` },
+          timeout: 60000,
+        }
+      );
+      resultRows = Array.isArray(snapshotRes.data)
+        ? snapshotRes.data
+        : (snapshotRes.data?.data || snapshotRes.data?.items || []);
     }
 
-    const normalized = items.slice(0, actorLimit).map((item, index) => {
-      const comment = item.comment || item;
-      return {
-        id: comment.pk || comment.id || item.id || `c_${index}`,
-        username: comment.owner_username || comment.username || item.ownerUsername || item.username || 'user',
-        text: comment.text || item.text || '',
-        timestamp: comment.created_at || comment.timestamp || item.timestamp || null,
-      };
-    }).filter(comment => comment.text || comment.username);
+    if (!Array.isArray(resultRows)) {
+      throw new Error('Bright Data returned an unexpected response. Check the dataset configuration in your Bright Data account.');
+    }
 
-    console.log(`Apify run ${run.id} returned ${normalized.length} comments (requested max: ${actorLimit}).`);
+    const normalized = resultRows.slice(0, commentLimit).map((item, index) => ({
+      id: item.comment_id || item.id || item.db_source || `brightdata_${index}`,
+      username: String(item.comment_user || item.username || item.author_username || item.ownerUsername || 'user').replace(/^@/, ''),
+      text: String(item.comment || item.text || item.comment_text || ''),
+      timestamp: item.comment_date || item.timestamp || item.created_at || null,
+    })).filter(comment => comment.text.trim());
+
+    console.log(`Bright Data returned ${normalized.length} comments (requested max: ${commentLimit}).`);
 
     return res.json({
       success: true,
-      provider: 'apify',
+      provider: 'bright_data',
       count: normalized.length,
       comments: normalized,
-      requestedLimit: actorLimit,
-      note: normalized.length < actorLimit
-        ? 'Instagram or the scraper returned fewer comments than the requested limit.'
+      requestedLimit: commentLimit,
+      note: normalized.length < commentLimit
+        ? 'Bright Data returned fewer comments than requested. Check the post visibility and your remaining free allowance.'
         : undefined,
     });
-  } catch (apifyErr) {
-    const apifyMessage = String(apifyErr.message || 'Unknown Apify error');
-    console.error('Apify error:', apifyMessage);
-
-    const quotaExceeded = /monthly usage hard limit exceeded|usage hard limit|monthly usage limit|not enough credits|insufficient balance/i.test(apifyMessage);
-    if (quotaExceeded) {
-      return res.status(503).json({
-        success: false,
-        code: 'APIFY_QUOTA_EXCEEDED',
-        error: 'Automatic fetching is temporarily unavailable because the Apify account has reached its monthly usage limit. This cannot be fixed by increasing the comment limit. For today, obtain a CSV or JSON export from a source you can access, then click “Paste / Upload All (10k+)” to import it. Free exporters usually limit the number of comments, so verify the exported row count before selecting a winner.',
-      });
-    }
+  } catch (providerErr) {
+    const message = String(providerErr.response?.data?.message || providerErr.response?.data?.error || providerErr.message || 'Unknown Bright Data error');
+    const status = providerErr.response?.status;
+    console.error('Bright Data error:', status || '', message);
 
     return res.status(502).json({
       success: false,
-      error: `Apify could not fetch this post: ${apifyMessage}. You can still import an existing CSV, JSON, or TXT comments file using “Paste / Upload All (10k+).”`,
+      code: 'BRIGHTDATA_FETCH_FAILED',
+      error: `Bright Data could not fetch comments: ${message}. Check that BRIGHTDATA_API_KEY is valid and that the Instagram Comments dataset is enabled in your Bright Data account. You can also import a CSV/JSON/TXT file.`,
     });
   }
 });
