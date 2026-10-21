@@ -23,6 +23,16 @@ function normalizeInstagramUrl(value) {
   }
 }
 
+function getInstagramShortcode(value) {
+  try {
+    const url = new URL(value);
+    if (!['instagram.com', 'www.instagram.com'].includes(url.hostname.toLowerCase())) return null;
+    return url.pathname.match(/^\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)?.[1] || null;
+  } catch {
+    return null;
+  }
+}
+
 async function getAllPages(firstUrl, firstParams = {}) {
   const items = [];
   let url = firstUrl;
@@ -114,15 +124,22 @@ app.post('/api/fetch-comments', async (req, res) => {
       access_token: metaToken,
     });
 
+    const requestedShortcode = getInstagramShortcode(postUrl);
     const targetMedia = media.find(item =>
-      item.permalink && normalizeInstagramUrl(item.permalink) === postUrl
+      item.permalink && getInstagramShortcode(item.permalink) === requestedShortcode
     );
 
     if (!targetMedia) {
+      console.warn('Meta media lookup did not find submitted post:', {
+        authorizedUserId: metaUserId,
+        mediaItemsReturned: media.length,
+        requestedShortcode,
+      });
       return res.status(404).json({
         success: false,
         code: 'META_MEDIA_NOT_FOUND',
-        error: 'Meta could not find this Reel in the authorized Instagram account media. Confirm the client authorized the account that owns this Reel and that the Reel is available through the API. Apify is disabled. You can still import comments from CSV, JSON, or TXT.',
+        mediaItemsReturned: media.length,
+        error: `Meta could not match this Instagram post to the authorized account's media. Meta returned ${media.length} media items for that account, but none matched the post URL. Confirm the post is published on this account and accessible through the Instagram API. Apify is disabled. You can still import comments from CSV, JSON, or TXT.`,
       });
     }
 
