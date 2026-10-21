@@ -17,11 +17,11 @@ const apifyClient = process.env.APIFY_TOKEN
   : null;
 
 app.post('/api/fetch-comments', async (req, res) => {
-  const { postUrl, limit = 1000 } = req.body;
+  const { postUrl, limit = 10000 } = req.body;
   const parsedLimit = Number.parseInt(limit, 10);
   const commentLimit = Number.isFinite(parsedLimit)
-    ? Math.min(Math.max(parsedLimit, 1), 5000)
-    : 1000;
+    ? Math.min(Math.max(parsedLimit, 1), 10000)
+    : 10000;
 
   if (!postUrl || !/^https?:\/\/(www\.)?instagram\.com\//i.test(postUrl)) {
     return res.status(400).json({ error: 'A valid Instagram URL is required.' });
@@ -88,20 +88,31 @@ app.post('/api/fetch-comments', async (req, res) => {
   }
 
   try {
-    // This actor supports pagination beyond the first ~12-15 comment page.
-    // Its documented maximum is 1,000 top-level comments per post per run.
-    const actorLimit = Math.min(commentLimit, 1000);
-    console.log(`Fetching up to ${actorLimit} comments via paginated Apify actor for: ${postUrl}`);
+    // This actor supports a configurable per-post comment limit beyond 1,000.
+    // Large requests may cost more and can still be limited by Instagram visibility/rate limits.
+    const actorLimit = commentLimit;
+    console.log(`Fetching up to ${actorLimit} comments via Apify for: ${postUrl}`);
 
-    const run = await apifyClient.actor('herus13/instagram-comment-scraper').call({
-      targets: [postUrl],
+    const run = await apifyClient.actor('datascrapers/instagram-comment-scraper').call({
+      post_urls: [postUrl],
       max_comments: actorLimit,
-      proxyProvider: 'default',
+      posts_concurrency: 1,
+      sleep_min: 5,
+      sleep_max: 12,
+      request_timeout: 120,
+      request_retries: 2,
+      rate_limit_cooldown: 180,
+      rate_limit_max_waits: 3,
+      proxyConfiguration: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL'],
+        apifyProxyCountry: 'US',
+      },
     });
 
     const dataset = apifyClient.dataset(run.defaultDatasetId);
     const items = [];
-    const pageSize = 500;
+    const pageSize = 1000;
     let offset = 0;
 
     while (items.length < actorLimit) {
@@ -118,10 +129,10 @@ app.post('/api/fetch-comments', async (req, res) => {
     const normalized = items.slice(0, actorLimit).map((item, index) => {
       const comment = item.comment || item;
       return {
-        id: comment.pk || item.id || `c_${index}`,
-        username: comment.owner_username || item.ownerUsername || item.username || 'user',
+        id: comment.pk || comment.id || item.id || `c_${index}`,
+        username: comment.owner_username || comment.username || item.ownerUsername || item.username || 'user',
         text: comment.text || item.text || '',
-        timestamp: comment.created_at || item.timestamp || null,
+        timestamp: comment.created_at || comment.timestamp || item.timestamp || null,
       };
     }).filter(comment => comment.text || comment.username);
 
