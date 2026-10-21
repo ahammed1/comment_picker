@@ -175,7 +175,8 @@ app.post('/api/fetch-comments', async (req, res) => {
         : undefined,
     });
   } catch (providerErr) {
-    const message = String(providerErr.response?.data?.message || providerErr.response?.data?.error || providerErr.message || 'Unknown Bright Data error');
+    const detail = providerErr.response?.data;
+    const message = String((typeof detail === 'string' ? detail : (detail?.message || detail?.error || detail?.details || JSON.stringify(detail))) || providerErr.message || 'Unknown Bright Data error');
     const status = providerErr.response?.status;
     console.error('Bright Data error:', status || '', message);
 
