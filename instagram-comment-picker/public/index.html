@@ -198,15 +198,17 @@
         <h3 class="text-base font-bold text-white">Load Comments (Direct Input / CSV)</h3>
         <button id="btnCloseModal" class="text-slate-400 hover:text-white text-xl">&times;</button>
       </div>
-      <p class="text-xs text-slate-400">Paste comments text (one per line, e.g. <code>@username: Great post! @friend</code>) or raw JSON/CSV array.</p>
+      <p class="text-xs text-slate-400">Import a CSV/JSON export, or paste one comment per line as <code>@username: comment text</code>. CSV columns such as <code>username</code>, <code>author</code>, <code>text</code>, and <code>comment</code> are supported.</p>
+      <input id="commentFile" type="file" accept=".csv,.json,.txt,text/csv,application/json,text/plain" class="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-pink-300 hover:file:bg-slate-700">
       <textarea id="pasteInput" rows="7" placeholder="@john_doe: Awesome giveaway! @sarah&#10;@emma_watson: Hope I win! @claire&#10;@alex99: Count me in!" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono focus:border-pink-500 focus:outline-none"></textarea>
+      <p class="text-[11px] text-slate-500">For large files, use CSV or JSON instead of pasting thousands of lines. Imported comments are processed in your browser.</p>
       
       <div class="flex items-center justify-between gap-3 pt-2">
         <button id="btnLoad5000Sample" class="py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">
-          Load 1,000 Mock Entries
+          Load Demo Entries
         </button>
         <button id="btnApplyPaste" class="py-2.5 px-5 rounded-xl insta-gradient font-bold text-xs text-white">
-          Apply Comments
+          Import Comments
         </button>
       </div>
     </div>
@@ -291,20 +293,81 @@
       alert('Loaded 1,000 entries successfully!');
     });
 
-    document.getElementById('btnApplyPaste').addEventListener('click', () => {
-      const text = document.getElementById('pasteInput').value.trim();
-      if (!text) return;
-      const lines = text.split('\n');
-      rawComments = lines.map((l, i) => {
-        const parts = l.split(':');
-        const username = parts.length > 1 ? parts[0].replace('@', '').trim() : `user_${i+1}`;
-        const commentText = parts.length > 1 ? parts.slice(1).join(':').trim() : l.trim();
-        return { id: `paste_${i}`, username, text: commentText, timestamp: new Date().toISOString() };
-      }).filter(c => c.text);
-      recalculateEligible();
-      modal.classList.add('hidden');
-      showIdleState();
-      alert(`Loaded ${rawComments.length} custom entries!`);
+    function normalizeImportedComments(rows) {
+      return rows.map((row, index) => {
+        if (typeof row === 'string') {
+          const match = row.match(/^\\s*@?([a-zA-Z0-9._]+)\\s*:\\s*(.*)$/);
+          return { id: `import_${index}`, username: match ? match[1] : `user_${index + 1}`, text: match ? match[2] : row.trim(), timestamp: null };
+        }
+        if (!row || typeof row !== 'object') return null;
+        const get = (...keys) => {
+          for (const key of keys) {
+            const found = Object.keys(row).find(k => k.toLowerCase().replace(/[\\s_-]/g, '') === key);
+            if (found && row[found] != null && String(row[found]).trim()) return String(row[found]).trim();
+          }
+          return '';
+        };
+        const username = get('username', 'authorusername', 'ownerusername', 'handle', 'author', 'user') || `user_${index + 1}`;
+        const text = get('text', 'comment', 'commenttext', 'content', 'message');
+        return { id: get('id', 'commentid') || `import_${index}`, username: username.replace(/^@/, ''), text, timestamp: get('timestamp', 'createdat', 'date') || null };
+      }).filter(c => c && c.text);
+    }
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [], field = '', quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i], next = text[i + 1];
+        if (ch === '"' && quoted && next === '"') { field += '"'; i++; }
+        else if (ch === '"') quoted = !quoted;
+        else if (ch === ',' && !quoted) { row.push(field); field = ''; }
+        else if ((ch === '\\n' || ch === '\\r') && !quoted) {
+          if (ch === '\\r' && next === '\\n') i++;
+          row.push(field); field = '';
+          if (row.some(cell => cell.trim())) rows.push(row);
+          row = [];
+        } else field += ch;
+      }
+      row.push(field);
+      if (row.some(cell => cell.trim())) rows.push(row);
+      if (rows.length < 2) return [];
+      const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[\\s_-]/g, ''));
+      return rows.slice(1).map(values => Object.fromEntries(headers.map((h, i) => [h, values[i] || ''])));
+    }
+
+    function parseImportedText(text, fileName = '') {
+      const trimmed = text.trim();
+      if (!trimmed) return [];
+      if (fileName.toLowerCase().endsWith('.json') || trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        const parsed = JSON.parse(trimmed);
+        const rows = Array.isArray(parsed) ? parsed : (parsed.comments || parsed.data || parsed.items || []);
+        if (!Array.isArray(rows)) throw new Error('JSON must contain an array of comments, or a comments/data/items array.');
+        return normalizeImportedComments(rows);
+      }
+      if (fileName.toLowerCase().endsWith('.csv') || (trimmed.includes(',') && /username|author|comment|text/i.test(trimmed.split(/\\r?\\n/, 1)[0]))) {
+        const rows = parseCSV(trimmed);
+        if (!rows.length) throw new Error('Could not read CSV rows. Make sure the file has a header row and comment text column.');
+        return normalizeImportedComments(rows);
+      }
+      return normalizeImportedComments(trimmed.split(/\\r?\\n/).filter(line => line.trim()));
+    }
+
+    document.getElementById('btnApplyPaste').addEventListener('click', async () => {
+      const file = document.getElementById('commentFile').files[0];
+      const pasted = document.getElementById('pasteInput').value.trim();
+      if (!file && !pasted) return alert('Choose a CSV/JSON/TXT file or paste comments first.');
+      try {
+        const sourceText = file ? await file.text() : pasted;
+        const imported = parseImportedText(sourceText, file ? file.name : '');
+        if (!imported.length) return alert('No comments with readable comment text were found. Check the file columns.');
+        rawComments = imported;
+        recalculateEligible();
+        modal.classList.add('hidden');
+        showIdleState();
+        alert(`Imported ${rawComments.length.toLocaleString()} comments successfully.`);
+      } catch (err) {
+        alert(`Import failed: ${err.message || 'Please check the file format.'}`);
+      }
     });
 
     document.getElementById('soundToggle').addEventListener('click', () => {
