@@ -53,42 +53,40 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/meta-status', async (_req, res) => {
   const accessToken = process.env.META_ACCESS_TOKEN;
-  const instagramUserId = process.env.META_IG_USER_ID;
-  if (!accessToken || !instagramUserId) {
+
+  if (!accessToken) {
     return res.status(503).json({
       success: false,
       configured: false,
-      error: 'Set META_ACCESS_TOKEN and META_IG_USER_ID in Render if you want to use Meta.',
+      error: 'Set META_ACCESS_TOKEN in Render.',
     });
   }
+
   try {
-    const response = await axios.get(`${META_API_BASE}/${encodeURIComponent(instagramUserId)}`, {
-      params: { fields: 'id,username,account_type', access_token: accessToken },
+    const response = await axios.get(`${META_API_BASE}/me`, {
+      params: {
+        fields: 'user_id,username',
+        access_token: accessToken,
+      },
       timeout: 15000,
     });
+
     return res.json({
       success: true,
       configured: true,
       account: {
-        id: response.data.id,
+        id: response.data.user_id,
         username: response.data.username || null,
-        accountType: response.data.account_type || null,
       },
-      message: 'Meta token and Instagram account ID were accepted.',
+      message: 'Instagram Login credentials were accepted.',
     });
   } catch (error) {
     const metaError = error.response?.data?.error;
-    console.error('Meta credential check failed:', {
-      status: error.response?.status || 502,
-      code: metaError?.code,
-      subcode: metaError?.error_subcode,
-      message: metaError?.message || error.message,
-    });
+
     return res.status(502).json({
       success: false,
       configured: true,
-      code: 'META_CREDENTIAL_CHECK_FAILED',
-      error: metaError?.message || 'Meta could not validate these credentials. Check Render logs for the Meta error code.',
+      error: metaError?.message || 'Instagram could not validate the access token.',
     });
   }
 });
