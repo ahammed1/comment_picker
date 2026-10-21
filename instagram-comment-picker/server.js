@@ -119,7 +119,7 @@ app.post('/api/fetch-comments', async (req, res) => {
 
   try {
     const media = await getAllPages(`${META_API_BASE}/${encodeURIComponent(metaUserId)}/media`, {
-      fields: 'id,permalink,media_type',
+      fields: 'id,permalink,media_type,comments_count',
       limit: 100,
       access_token: metaToken,
     });
@@ -147,7 +147,7 @@ app.post('/api/fetch-comments', async (req, res) => {
     let nextUrl = `${META_API_BASE}/${encodeURIComponent(targetMedia.id)}/comments`;
     let params = {
       fields: 'id,text,username,timestamp',
-      limit: 100,
+      limit: 50,
       access_token: metaToken,
     };
 
@@ -171,11 +171,14 @@ app.post('/api/fetch-comments', async (req, res) => {
       success: true,
       provider: 'meta_graph_api',
       requestedLimit: limit,
+      mediaCommentsCount: Number.isFinite(Number(targetMedia.comments_count)) ? Number(targetMedia.comments_count) : null,
       count: comments.length,
       comments,
-      message: comments.length < limit
-        ? 'Meta returned fewer comments than requested; this may be the number available through the API.'
-        : 'Requested comment limit reached.',
+      message: comments.length === 0
+        ? `Meta found the post, but its comments endpoint returned 0 comments. The post reports ${targetMedia.comments_count ?? 'an unknown number of'} comments. Check comment permissions and the API response in Render logs.`
+        : comments.length < limit
+          ? 'Meta returned fewer comments than requested; the API may expose only a subset.'
+          : 'Requested comment limit reached.',
     });
   } catch (error) {
     const metaError = error.response?.data?.error;
