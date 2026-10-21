@@ -79,113 +79,11 @@ app.post('/api/fetch-comments', async (req, res) => {
     }
   }
 
-  const brightDataToken = process.env.BRIGHTDATA_API_KEY;
-  if (!brightDataToken) {
-    return res.status(503).json({
-      success: false,
-      code: 'BRIGHTDATA_TOKEN_MISSING',
-      error: 'Automatic fetching is not configured yet. Add BRIGHTDATA_API_KEY in Render Environment, then redeploy. You can still import a CSV, JSON, or TXT comments file.',
-    });
-  }
-
-  try {
-    console.log(`Fetching up to ${commentLimit} comments via Bright Data for: ${postUrl}`);
-
-    // Bright Data's Instagram Comments dataset. One returned record represents a comment.
-    const triggerRes = await axios.post(
-      'https://api.brightdata.com/datasets/v3/trigger',
-      [{ url: postUrl }],
-      {
-        params: {
-          dataset_id: 'gd_ltppn085pokosxh13',
-          format: 'json',
-          uncompressed_webhook: 'true',
-        },
-        headers: {
-          Authorization: `Bearer ${brightDataToken}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      }
-    );
-
-    const snapshotId = triggerRes.data?.snapshot_id || triggerRes.data?.snapshotId || triggerRes.data?.id;
-    let resultRows = Array.isArray(triggerRes.data) ? triggerRes.data : null;
-
-    // Large collections run asynchronously. Poll for completion before downloading the snapshot.
-    if (!resultRows && snapshotId) {
-      let ready = false;
-      for (let attempt = 0; attempt < 50; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        const progressRes = await axios.get(
-          `https://api.brightdata.com/datasets/v3/progress/${encodeURIComponent(snapshotId)}`,
-          {
-            headers: { Authorization: `Bearer ${brightDataToken}` },
-            timeout: 20000,
-          }
-        );
-        const status = String(progressRes.data?.status || '').toLowerCase();
-        if (status === 'ready' || status === 'completed') {
-          ready = true;
-          break;
-        }
-        if (status === 'failed' || status === 'error') {
-          throw new Error(progressRes.data?.error || `Bright Data collection status: ${status}`);
-        }
-      }
-
-      if (!ready) {
-        throw new Error('Bright Data collection is taking longer than expected. Please try again shortly.');
-      }
-
-      const snapshotRes = await axios.get(
-        `https://api.brightdata.com/datasets/v3/snapshot/${encodeURIComponent(snapshotId)}`,
-        {
-          params: { format: 'json' },
-          headers: { Authorization: `Bearer ${brightDataToken}` },
-          timeout: 60000,
-        }
-      );
-      resultRows = Array.isArray(snapshotRes.data)
-        ? snapshotRes.data
-        : (snapshotRes.data?.data || snapshotRes.data?.items || []);
-    }
-
-    if (!Array.isArray(resultRows)) {
-      throw new Error('Bright Data returned an unexpected response. Check the dataset configuration in your Bright Data account.');
-    }
-
-    const normalized = resultRows.slice(0, commentLimit).map((item, index) => ({
-      id: item.comment_id || item.id || item.db_source || `brightdata_${index}`,
-      username: String(item.comment_user || item.username || item.author_username || item.ownerUsername || 'user').replace(/^@/, ''),
-      text: String(item.comment || item.text || item.comment_text || ''),
-      timestamp: item.comment_date || item.timestamp || item.created_at || null,
-    })).filter(comment => comment.text.trim());
-
-    console.log(`Bright Data returned ${normalized.length} comments (requested max: ${commentLimit}).`);
-
-    return res.json({
-      success: true,
-      provider: 'bright_data',
-      count: normalized.length,
-      comments: normalized,
-      requestedLimit: commentLimit,
-      note: normalized.length < commentLimit
-        ? 'Bright Data returned fewer comments than requested. Check the post visibility and your remaining free allowance.'
-        : undefined,
-    });
-  } catch (providerErr) {
-    const detail = providerErr.response?.data;
-    const message = String((typeof detail === 'string' ? detail : (detail?.message || detail?.error || detail?.details || JSON.stringify(detail))) || providerErr.message || 'Unknown Bright Data error');
-    const status = providerErr.response?.status;
-    console.error('Bright Data error:', status || '', message);
-
-    return res.status(502).json({
-      success: false,
-      code: 'BRIGHTDATA_FETCH_FAILED',
-      error: `Bright Data could not fetch comments: ${message}. Check that BRIGHTDATA_API_KEY is valid and that the Instagram Comments dataset is enabled in your Bright Data account. You can also import a CSV/JSON/TXT file.`,
-    });
-  }
+  return res.status(503).json({
+    success: false,
+    code: 'MANUAL_IMPORT_REQUIRED',
+    error: 'Automatic fetching is currently unavailable for this Instagram post. Meta API access is generally limited to eligible media for an authorized account. Please import a CSV, JSON, or TXT file containing the comments you are authorized to access.',
+  });
 });
 
 app.listen(PORT, () => {
