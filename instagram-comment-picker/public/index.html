@@ -430,7 +430,13 @@
         recalculateEligible();
         showIdleState();
         const provider = data.provider ? ` via ${data.provider}` : '';
-        alert(`Retrieved ${rawComments.length} comments${provider}. If this is fewer than expected, Instagram/Apify may not have exposed all comments.`);
+        const postCount = data.mediaCommentsCount !== null && data.mediaCommentsCount !== undefined
+          ? `\nComments reported for post: ${data.mediaCommentsCount}`
+          : '';
+        const detail = rawComments.length === 0 && data.message
+          ? `\n${data.message}`
+          : '';
+        alert(`Retrieved ${rawComments.length} comments${provider}.${postCount}${detail}`);
       } catch (err) {
         alert(err.message || 'Failed to connect to the backend server.');
       } finally {
