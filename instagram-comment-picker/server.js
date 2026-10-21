@@ -149,9 +149,21 @@ app.post('/api/fetch-comments', async (req, res) => {
         : undefined,
     });
   } catch (apifyErr) {
-    console.error('Apify error:', apifyErr.message);
-    return res.status(500).json({
-      error: `Failed to fetch comments from Apify: ${apifyErr.message}`,
+    const apifyMessage = String(apifyErr.message || 'Unknown Apify error');
+    console.error('Apify error:', apifyMessage);
+
+    const quotaExceeded = /monthly usage hard limit exceeded|usage hard limit|monthly usage limit|not enough credits|insufficient balance/i.test(apifyMessage);
+    if (quotaExceeded) {
+      return res.status(503).json({
+        success: false,
+        code: 'APIFY_QUOTA_EXCEEDED',
+        error: 'Automatic fetching is temporarily unavailable because the Apify account has reached its monthly usage limit. This cannot be fixed by increasing the comment limit. For today, obtain a CSV or JSON export from a source you can access, then click “Paste / Upload All (10k+)” to import it. Free exporters usually limit the number of comments, so verify the exported row count before selecting a winner.',
+      });
+    }
+
+    return res.status(502).json({
+      success: false,
+      error: `Apify could not fetch this post: ${apifyMessage}. You can still import an existing CSV, JSON, or TXT comments file using “Paste / Upload All (10k+).”`,
     });
   }
 });
