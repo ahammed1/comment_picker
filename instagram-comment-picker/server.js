@@ -17,8 +17,12 @@ const apifyClient = process.env.APIFY_TOKEN ? new ApifyClient({ token: process.e
 
 app.post('/api/fetch-comments', async (req, res) => {
   const { postUrl, limit = 1000 } = req.body;
+  const parsedLimit = Number.parseInt(limit, 10);
+  const commentLimit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 5000)
+    : 1000;
 
-  if (!postUrl || !postUrl.includes('instagram.com')) {
+  if (!postUrl || !/^https?:\/\/(www\.)?instagram\.com\//i.test(postUrl)) {
     return res.status(400).json({ error: 'A valid Instagram URL is required.' });
   }
 
@@ -48,7 +52,7 @@ app.post('/api/fetch-comments', async (req, res) => {
         let allComments = [];
         let nextUrl = `https://graph.instagram.com/v26.0/${targetMedia.id}/comments?fields=id,text,username,timestamp&limit=50&access_token=${metaToken}`;
 
-        while (nextUrl && allComments.length < limit) {
+        while (nextUrl && allComments.length < commentLimit) {
           const commentRes = await axios.get(nextUrl);
           const data = commentRes.data;
 
@@ -87,12 +91,29 @@ app.post('/api/fetch-comments', async (req, res) => {
       console.log(`Fetching via Apify scraper for: ${postUrl}...`);
       const run = await apifyClient.actor('apify/instagram-comment-scraper').call({
         directUrls: [postUrl],
-        resultsLimit: parseInt(limit, 10),
+        resultsLimit: commentLimit,
       });
 
-      const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+      const dataset = apifyClient.dataset(run.defaultDatasetId);
+      const items = [];
+      const pageSize = 1000;
+      let offset = 0;
 
-      const normalized = items.map((item, index) => ({
+      // Read the dataset in pages instead of relying on a single listItems call.
+      while (items.length < commentLimit) {
+        const requestedPageSize = Math.min(pageSize, commentLimit - items.length);
+        const page = await dataset.listItems({ limit: requestedPageSize, offset });
+        const pageItems = page.items || [];
+        if (pageItems.length === 0) break;
+
+        items.push(...pageItems);
+        offset += pageItems.length;
+        if (pageItems.length < requestedPageSize) break;
+      }
+
+      console.log(`Apify run ${run.id} returned ${items.length} dataset items (requested max: ${commentLimit}).`);
+
+      const normalized = items.slice(0, commentLimit).map((item, index) => ({
         id: item.id || `c_${index}`,
         username: item.ownerUsername || item.username || 'user',
         text: item.text || '',
@@ -107,7 +128,7 @@ app.post('/api/fetch-comments', async (req, res) => {
       });
     } catch (apifyErr) {
       console.error('Apify error:', apifyErr.message);
-      return res.status(500).json({ error: 'Failed to scrape external post. Use the Paste/Upload button for large lists.' });
+      return res.status(500).json({ error: `Failed to fetch comments from Apify: ${apifyErr.message}` });
     }
   }
 
