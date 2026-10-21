@@ -7,7 +7,7 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const META_API_VERSION = process.env.META_API_VERSION || 'v26.0';
-const META_API_BASE = `https://graph.instagram.com/${META_API_VERSION}`;
+const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -47,6 +47,59 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.get('/api/meta-status', async (_req, res) => {
+  const accessToken = process.env.META_ACCESS_TOKEN;
+  const instagramUserId = process.env.META_IG_USER_ID;
+
+  if (!accessToken || !instagramUserId) {
+    return res.status(503).json({
+      success: false,
+      configured: false,
+      error: 'Set META_ACCESS_TOKEN to the linked Facebook Page Access Token and META_IG_USER_ID to the linked Instagram Professional Account ID in Render.',
+    });
+  }
+
+  try {
+    const response = await axios.get(
+      `${META_API_BASE}/${encodeURIComponent(instagramUserId)}`,
+      {
+        params: {
+          fields: 'id,username,account_type',
+          access_token: accessToken,
+        },
+        timeout: 15000,
+      }
+    );
+
+    return res.json({
+      success: true,
+      configured: true,
+      account: {
+        id: response.data.id,
+        username: response.data.username || null,
+        accountType: response.data.account_type || null,
+      },
+      message: 'Meta token and Instagram account ID were accepted.',
+    });
+  } catch (error) {
+    const metaError = error.response?.data?.error;
+    console.error('Meta credential check failed:', {
+      status: error.response?.status || 502,
+      code: metaError?.code,
+      subcode: metaError?.error_subcode,
+      message: metaError?.message || error.message,
+    });
+
+    return res.status(502).json({
+      success: false,
+      configured: true,
+      code: 'META_CREDENTIAL_CHECK_FAILED',
+      error: metaError?.message || 'Meta could not validate these credentials. Check Render logs for the Meta error code.',
+      hint: 'Facebook Login requires the linked Facebook Page Access Token, the linked Instagram Professional Account ID, and the required permissions.',
+    });
+  }
+});
+
 app.post('/api/fetch-comments', async (req, res) => {
   const requestedUrl = normalizeInstagramUrl(req.body?.postUrl);
   if (!requestedUrl) {
@@ -65,13 +118,13 @@ app.post('/api/fetch-comments', async (req, res) => {
     return res.status(503).json({
       success: false,
       code: 'META_NOT_CONFIGURED',
-      error: 'Meta API is not configured yet. Set META_ACCESS_TOKEN and META_IG_USER_ID in Render Environment after authorizing the client’s Instagram Professional account. You can still import a CSV, JSON, or TXT comments file.',
+      error: 'Meta API credentials are missing. Set META_ACCESS_TOKEN to the linked Facebook Page Access Token and META_IG_USER_ID to the linked Instagram Professional Account ID in Render. CSV, JSON, or TXT import remains available.',
     });
   }
 
   try {
-    // Instagram Login API: the token and IG user ID must belong to the authorized
-    // professional account. Never accept access tokens from browser requests.
+    // Facebook Login API: use a Facebook Page Access Token and the linked
+    // Instagram Professional Account ID. Never accept tokens from browser requests.
     const media = await getAllPages(
       `${META_API_BASE}/${encodeURIComponent(instagramUserId)}/media`,
       {
@@ -89,7 +142,7 @@ app.post('/api/fetch-comments', async (req, res) => {
       return res.status(404).json({
         success: false,
         code: 'META_POST_NOT_FOUND',
-        error: 'This post was not found in the authorized Instagram account’s accessible media. Confirm the account authorization and exact post URL. Meta API cannot fetch arbitrary posts just from their public URL.',
+        error: 'This post was not found in media accessible to the authorized Instagram Professional account. Verify the post URL, linked Facebook Page, Instagram account ID, and token permissions. The API cannot fetch arbitrary public posts just from their URL.',
       });
     }
 
@@ -142,7 +195,7 @@ app.post('/api/fetch-comments', async (req, res) => {
       return res.status(502).json({
         success: false,
         code: 'META_AUTH_OR_PERMISSION_ERROR',
-        error: 'Meta rejected the token or permissions. Re-authorize the client’s Instagram Professional account and verify instagram_business_basic and instagram_business_manage_comments are granted.',
+        error: 'Meta rejected the token or permissions. For Facebook Login, use the linked Facebook Page Access Token and verify instagram_basic, instagram_manage_comments, pages_read_engagement, and pages_show_list as applicable.',
       });
     }
 
