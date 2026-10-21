@@ -49,6 +49,14 @@
           <input type="url" id="postUrl" placeholder="https://www.instagram.com/p/C-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-pink-500 transition">
         </div>
 
+        <div>
+          <label for="commentLimit" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Maximum comments to fetch</label>
+          <select id="commentLimit" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-pink-500 transition">
+            <option value="5000">5,000 comments</option>
+            <option value="10000" selected>10,000 comments (maximum)</option>
+          </select>
+        </div>
+
         <div class="grid grid-cols-2 gap-2 pt-1">
           <button id="btnFetchDemo" class="w-full py-2.5 px-3 rounded-xl border border-pink-500/40 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 text-xs font-bold transition">
             ⚡ Quick Demo
@@ -403,7 +411,7 @@
         const res = await fetch('/api/fetch-comments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ postUrl: url, limit: 10000 })
+          body: JSON.stringify({ postUrl: url, limit: Number(document.getElementById('commentLimit').value) || 10000 })
         });
         const responseText = await res.text();
         let data;
