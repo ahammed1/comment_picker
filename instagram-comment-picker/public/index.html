@@ -340,15 +340,19 @@
         const res = await fetch('/api/fetch-comments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ postUrl: url, limit: 500 })
+          body: JSON.stringify({ postUrl: url, limit: 5000 })
         });
         const data = await res.json();
-        rawComments = data.comments || [];
+        if (!res.ok || data.success === false) {
+          throw new Error(data.error || `Request failed (${res.status})`);
+        }
+        rawComments = Array.isArray(data.comments) ? data.comments : [];
         recalculateEligible();
         showIdleState();
-        alert(`Retrieved ${rawComments.length} comments!`);
+        const provider = data.provider ? ` via ${data.provider}` : '';
+        alert(`Retrieved ${rawComments.length} comments${provider}. If this is fewer than expected, Instagram/Apify may not have exposed all comments.`);
       } catch (err) {
-        alert('Failed to connect to the backend server.');
+        alert(err.message || 'Failed to connect to the backend server.');
       } finally {
         btn.innerText = '📥 Fetch Comments';
         btn.disabled = false;
