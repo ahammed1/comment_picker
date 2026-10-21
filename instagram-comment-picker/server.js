@@ -3,16 +3,11 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
-const { ApifyClient } = require('apify-client');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const META_API_VERSION = process.env.META_API_VERSION || 'v26.0';
 const META_API_BASE = `https://graph.instagram.com/${META_API_VERSION}`;
-const apifyClient = process.env.APIFY_TOKEN
-  ? new ApifyClient({ token: process.env.APIFY_TOKEN })
-  : null;
-
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -47,7 +42,7 @@ app.get('/api/health', (_req, res) => {
     success: true,
     message: 'Backend API is working!',
     metaConfigured: Boolean(process.env.META_ACCESS_TOKEN && process.env.META_IG_USER_ID),
-    apifyConfigured: Boolean(process.env.APIFY_TOKEN),
+    provider: 'meta_only',
   });
 });
 
@@ -100,105 +95,86 @@ app.post('/api/fetch-comments', async (req, res) => {
   const requestedLimit = Number.parseInt(req.body?.limit, 10);
   const limit = Number.isFinite(requestedLimit)
     ? Math.min(Math.max(requestedLimit, 1), 10000)
-    : 1000;
+    : 10000;
   const metaToken = process.env.META_ACCESS_TOKEN;
   const metaUserId = process.env.META_IG_USER_ID;
-  const shortcodeMatch = postUrl.match(/\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
-  const shortcode = shortcodeMatch?.[2];
 
-  // First try Meta for media owned by the authorized Instagram Professional account.
-  if (metaToken && metaUserId && shortcode) {
-    try {
-      const media = await getAllPages(`${META_API_BASE}/${encodeURIComponent(metaUserId)}/media`, {
-        fields: 'id,permalink,media_type',
-        limit: 100,
-        access_token: metaToken,
+  if (!metaToken || !metaUserId) {
+    return res.status(503).json({
+      success: false,
+      code: 'META_NOT_CONFIGURED',
+      error: 'Meta is not configured. Set META_ACCESS_TOKEN and META_IG_USER_ID in Render. CSV, JSON, or TXT import is still available.',
+    });
+  }
+
+  try {
+    const media = await getAllPages(`${META_API_BASE}/${encodeURIComponent(metaUserId)}/media`, {
+      fields: 'id,permalink,media_type',
+      limit: 100,
+      access_token: metaToken,
+    });
+
+    const targetMedia = media.find(item =>
+      item.permalink && normalizeInstagramUrl(item.permalink) === postUrl
+    );
+
+    if (!targetMedia) {
+      return res.status(404).json({
+        success: false,
+        code: 'META_MEDIA_NOT_FOUND',
+        error: 'Meta could not find this Reel in the authorized Instagram account media. Confirm the client authorized the account that owns this Reel and that the Reel is available through the API. Apify is disabled. You can still import comments from CSV, JSON, or TXT.',
       });
-      const targetMedia = media.find(item =>
-        item.permalink && normalizeInstagramUrl(item.permalink) === postUrl
-      );
+    }
 
-      if (targetMedia) {
-        const comments = [];
-        let nextUrl = `${META_API_BASE}/${encodeURIComponent(targetMedia.id)}/comments`;
-        let params = {
-          fields: 'id,text,username,timestamp',
-          limit: 100,
-          access_token: metaToken,
-        };
-        while (nextUrl && comments.length < limit) {
-          const response = await axios.get(nextUrl, { params, timeout: 30000 });
-          const body = response.data || {};
-          for (const item of (Array.isArray(body.data) ? body.data : [])) {
-            if (comments.length >= limit) break;
-            comments.push({
-              id: item.id,
-              username: item.username || 'user',
-              text: item.text || '',
-              timestamp: item.timestamp || null,
-            });
-          }
-          nextUrl = body.paging?.next || null;
-          params = undefined;
-        }
-        return res.json({
-          success: true,
-          provider: 'meta_graph_api',
-          count: comments.length,
-          comments,
+    const comments = [];
+    let nextUrl = `${META_API_BASE}/${encodeURIComponent(targetMedia.id)}/comments`;
+    let params = {
+      fields: 'id,text,username,timestamp',
+      limit: 100,
+      access_token: metaToken,
+    };
+
+    while (nextUrl && comments.length < limit) {
+      const response = await axios.get(nextUrl, { params, timeout: 30000 });
+      const body = response.data || {};
+      for (const item of (Array.isArray(body.data) ? body.data : [])) {
+        if (comments.length >= limit) break;
+        comments.push({
+          id: item.id,
+          username: item.username || 'user',
+          text: item.text || '',
+          timestamp: item.timestamp || null,
         });
       }
-      console.log('Meta: post is not in authorized account media; trying Apify if configured.');
-    } catch (error) {
-      const metaError = error.response?.data?.error;
-      console.warn('Meta request failed; trying Apify fallback:', {
-        status: error.response?.status || 502,
-        code: metaError?.code,
-        message: metaError?.message || error.message,
-      });
+      nextUrl = body.paging?.next || null;
+      params = undefined;
     }
+
+    return res.json({
+      success: true,
+      provider: 'meta_graph_api',
+      requestedLimit: limit,
+      count: comments.length,
+      comments,
+      message: comments.length < limit
+        ? 'Meta returned fewer comments than requested; this may be the number available through the API.'
+        : 'Requested comment limit reached.',
+    });
+  } catch (error) {
+    const metaError = error.response?.data?.error;
+    const message = metaError?.message || error.message || 'Meta could not fetch comments.';
+    console.error('Meta comment fetch failed:', {
+      status: error.response?.status || 502,
+      code: metaError?.code,
+      message,
+    });
+
+    return res.status(502).json({
+      success: false,
+      code: 'META_FETCH_FAILED',
+      error: `Meta API request failed: ${message}. Apify is disabled. Check the Instagram API permissions and whether the authorized account can access this Reel. CSV, JSON, or TXT import remains available.`,
+    });
   }
-
-  // Apify fallback supports eligible public posts, subject to actor access and usage quota.
-  if (apifyClient) {
-    try {
-      const run = await apifyClient.actor('apify/instagram-comment-scraper').call({
-        directUrls: [postUrl],
-        resultsLimit: limit,
-      });
-      const { items = [] } = await apifyClient.dataset(run.defaultDatasetId).listItems({ limit });
-      const comments = items.map((item, index) => ({
-        id: item.id || `c_${index}`,
-        username: item.ownerUsername || item.username || 'user',
-        text: item.text || '',
-        timestamp: item.timestamp || null,
-      })).filter(item => item.text || item.username);
-
-      return res.json({
-        success: true,
-        provider: 'apify',
-        count: comments.length,
-        comments,
-      });
-    } catch (error) {
-      console.error('Apify request failed:', error.message);
-      const message = /quota|monthly usage hard limit|usage hard limit/i.test(error.message || '')
-        ? 'Apify usage limit has been reached. Increase/reset the Apify plan or import comments from a CSV, JSON, or TXT file.'
-        : 'Apify could not fetch comments for this post. Check the Apify actor run and Render logs, or import a CSV, JSON, or TXT file.';
-      return res.status(502).json({
-        success: false,
-        code: 'APIFY_FETCH_FAILED',
-        error: message,
-        metaAttempted: Boolean(metaToken && metaUserId),
-      });
-    }
-  }
-
-  return res.status(503).json({
-    success: false,
-    code: 'NO_PROVIDER_CONFIGURED',
-    error: 'Set APIFY_TOKEN in Render to enable Apify. Meta is optional and works only for media accessible to the authorized Instagram Professional account. CSV, JSON, or TXT import remains available.',
-  });
 });
 
 app.listen(PORT, () => {
