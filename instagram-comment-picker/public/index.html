@@ -296,13 +296,13 @@
     function normalizeImportedComments(rows) {
       return rows.map((row, index) => {
         if (typeof row === 'string') {
-          const match = row.match(/^\\s*@?([a-zA-Z0-9._]+)\\s*:\\s*(.*)$/);
+          const match = row.match(/^\s*@?([a-zA-Z0-9._]+)\s*:\s*(.*)$/);
           return { id: `import_${index}`, username: match ? match[1] : `user_${index + 1}`, text: match ? match[2] : row.trim(), timestamp: null };
         }
         if (!row || typeof row !== 'object') return null;
         const get = (...keys) => {
           for (const key of keys) {
-            const found = Object.keys(row).find(k => k.toLowerCase().replace(/[\\s_-]/g, '') === key);
+            const found = Object.keys(row).find(k => k.toLowerCase().replace(/[\s_-]/g, '') === key);
             if (found && row[found] != null && String(row[found]).trim()) return String(row[found]).trim();
           }
           return '';
@@ -321,8 +321,8 @@
         if (ch === '"' && quoted && next === '"') { field += '"'; i++; }
         else if (ch === '"') quoted = !quoted;
         else if (ch === ',' && !quoted) { row.push(field); field = ''; }
-        else if ((ch === '\\n' || ch === '\\r') && !quoted) {
-          if (ch === '\\r' && next === '\\n') i++;
+        else if ((ch === '\n' || ch === '\r') && !quoted) {
+          if (ch === '\r' && next === '\n') i++;
           row.push(field); field = '';
           if (row.some(cell => cell.trim())) rows.push(row);
           row = [];
@@ -331,7 +331,7 @@
       row.push(field);
       if (row.some(cell => cell.trim())) rows.push(row);
       if (rows.length < 2) return [];
-      const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[\\s_-]/g, ''));
+      const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[\s_-]/g, ''));
       return rows.slice(1).map(values => Object.fromEntries(headers.map((h, i) => [h, values[i] || ''])));
     }
 
@@ -344,12 +344,12 @@
         if (!Array.isArray(rows)) throw new Error('JSON must contain an array of comments, or a comments/data/items array.');
         return normalizeImportedComments(rows);
       }
-      if (fileName.toLowerCase().endsWith('.csv') || (trimmed.includes(',') && /username|author|comment|text/i.test(trimmed.split(/\\r?\\n/, 1)[0]))) {
+      if (fileName.toLowerCase().endsWith('.csv') || (trimmed.includes(',') && /username|author|comment|text/i.test(trimmed.split(/\r?\n/, 1)[0]))) {
         const rows = parseCSV(trimmed);
         if (!rows.length) throw new Error('Could not read CSV rows. Make sure the file has a header row and comment text column.');
         return normalizeImportedComments(rows);
       }
-      return normalizeImportedComments(trimmed.split(/\\r?\\n/).filter(line => line.trim()));
+      return normalizeImportedComments(trimmed.split(/\r?\n/).filter(line => line.trim()));
     }
 
     document.getElementById('btnApplyPaste').addEventListener('click', async () => {
