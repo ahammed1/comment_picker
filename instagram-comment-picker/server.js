@@ -8,7 +8,7 @@ const { ApifyClient } = require('apify-client');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const META_API_VERSION = process.env.META_API_VERSION || 'v26.0';
-const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+const META_API_BASE = `https://graph.instagram.com/${META_API_VERSION}`;
 const apifyClient = process.env.APIFY_TOKEN
   ? new ApifyClient({ token: process.env.APIFY_TOKEN })
   : null;
